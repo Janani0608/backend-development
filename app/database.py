@@ -1,8 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-
-DATABASE_URL = "postgresql+psycopg2-binary://jananikarthikeyan@localhost:5432/banking_db"
+from config import DATABASE_URL
 
 #Engine to make a connection to the PostgreSQL database
 engine = create_engine(DATABASE_URL)

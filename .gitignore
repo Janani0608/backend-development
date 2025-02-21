@@ -1,2 +1,6 @@
 venv/
 models/__pycache__/
+.env
+alembic/versions/__pycache__/
+app/__pycache__/
+__pycache__/
