@@ -140,16 +140,6 @@ def test_view_customers_as_admin(setup_test_data):
     assert len(data) > 0  # Customers exist in DB
     assert data[0]["name"] in ["Arisha Barron", "Branden Gibson"]
 
-
-def test_view_customers_as_non_admin(setup_test_data):
-    """Test that a non-admin user is forbidden from viewing customers."""
-    token = create_test_access_token(setup_test_data["teller"])  # Teller is NOT an admin
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    response = client.get("/view-customers", headers=headers)
-    assert response.status_code == 403  # Expecting "Forbidden"
-
-
 def test_view_accounts_as_admin(setup_test_data):
     """Test that an admin can view accounts of a specific customer."""
     token = create_test_access_token(setup_test_data["admin"])
@@ -161,15 +151,6 @@ def test_view_accounts_as_admin(setup_test_data):
     assert isinstance(data, list)  # Response should be a list
     assert len(data) > 0  # Accounts exist for this customer
     assert data[0]["customer_id"] == 1  # Validate account belongs to customer
-
-
-def test_view_accounts_as_non_admin(setup_test_data):
-    """Test that a non-admin user cannot view accounts of a specific customer."""
-    token = create_test_access_token(setup_test_data["teller"])  # Teller is NOT an admin
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    response = client.get("/view-accounts/1", headers=headers)  # Customer ID 1
-    assert response.status_code == 403  # Expecting "Forbidden"
 
 def test_create_account(setup_test_data):
     """Test creating a new bank account with manager credentials."""
@@ -260,6 +241,22 @@ def test_transfer_to_same_account(setup_test_data):
 ###############################################################################
 #                             Security Tests                                  #
 ###############################################################################
+
+def test_view_customers_as_non_admin(setup_test_data):
+    """Test that a non-admin user is forbidden from viewing customers."""
+    token = create_test_access_token(setup_test_data["teller"])  # Teller is NOT an admin
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    response = client.get("/view-customers", headers=headers)
+    assert response.status_code == 403  # Expecting "Forbidden"
+
+def test_view_accounts_as_non_admin(setup_test_data):
+    """Test that a non-admin user cannot view accounts of a specific customer."""
+    token = create_test_access_token(setup_test_data["teller"])  # Teller is NOT an admin
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    response = client.get("/view-accounts/1", headers=headers)  # Customer ID 1
+    assert response.status_code == 403  # Expecting "Forbidden"
 
 def test_create_account_unauthorized(setup_test_data):
     """Test that a teller is not authorized to create an account."""
