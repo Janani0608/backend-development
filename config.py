@@ -13,11 +13,12 @@ Dependencies:
 import os
 import pytz
 import logging
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from datetime import datetime, timedelta, timezone
 
 # Load environment variables from the .env file
-load_dotenv()
+if not load_dotenv(find_dotenv()):
+    raise RuntimeError("Missing .env file!")
 
 # -----------------------------------
 # Timezone Configuration

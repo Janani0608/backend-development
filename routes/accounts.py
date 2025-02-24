@@ -49,6 +49,21 @@ class DepositWithdrawRequest(BaseModel):
 # ------------------------------------
 # Pydantic Schemas for API Responses
 # ------------------------------------
+class CustomerResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+class AccountResponse(BaseModel):
+    id: int
+    customer_id: int
+    balance: float
+
+    class Config:
+        from_attributes = True
+
 class CreateAccountResponse(BaseModel):
     """Response schema for account creation."""
     message: str
@@ -111,21 +126,107 @@ def safe_rollback(db: Session):
 # ---------------------------------------------------------------------------------------------------------------------------------
 # API Endpoints
 # ---------------------------------------------------------------------------------------------------------------------------------
-@router.get("/view-customers")
+@router.get(
+    "/view-customers", 
+    response_model=List[CustomerResponse] , 
+    dependencies = [Depends(require_role("admin"))], 
+    summary = "Retrieve all customers",
+    description="Returns a list of all customers. Only accessible to users with the 'admin' role.",
+    responses={
+        200: {"description": "Successful response"},
+        403: {"description": "Forbidden - Requires Admin role"},
+    })
 def view_customers(current_employee: models.Employee = Depends(get_current_employee), db: Session = Depends(get_db)):
     customers = db.query(models.Customer).all()
 
     """Retrieve a list of all customers."""
     return customers
 
-@router.get("/view-accounts/{customer_id}")
+@router.get(
+    "/view-accounts/{customer_id}", 
+    response_model=List[AccountResponse] , 
+    dependencies = [Depends(require_role("admin"))], 
+    summary = "Retrieve all accounts",
+    description="""
+    Fetches all accounts associated with a given customer. 
+    This endpoint requires admin privileges.
+    
+    - **Admin Role Required**: Only users with the 'admin' role can access this.
+    - **Returns**: A list of accounts linked to the specified customer.
+    - **Error Handling**: 
+        - Returns `404 Not Found` if the customer does not exist.
+        - Returns `403 Forbidden` if the user is not an admin.
+    """,
+    responses={
+        200: {
+            "description": "Successful response with a list of accounts.",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "customer_id": 123,
+                            "account_type": "savings",
+                            "balance": 5000.00
+                        },
+                        {
+                            "id": 2,
+                            "customer_id": 123,
+                            "account_type": "checking",
+                            "balance": 2500.50
+                        }
+                    ]
+                }
+            }
+        },
+        404: {"description": "Customer not found"},
+        403: {"description": "Forbidden - Requires Admin role"},
+    })
 def view_accounts(customer_id: int, current_employee: models.Employee = Depends(get_current_employee), db: Session = Depends(get_db)):
-    accounts = db.query(models.Account).filter(models.Account.customer_id == customer_id).all()
+    customer = db.query(models.Customer).filter(models.Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")  # Raise 404 if customer doesn't exist
 
-    """Retrieve all accounts for a given customer."""
+    # Fetch the accounts
+    accounts = db.query(models.Account).filter(models.Account.customer_id == customer_id).all()
+    
     return accounts
 
-@router.post("/accounts/", response_model = CreateAccountResponse, dependencies = [Depends(require_role("manager"))])
+@router.post(
+    "/accounts/", 
+    response_model = CreateAccountResponse, 
+    dependencies = [Depends(require_role("manager"))],
+    summary="Create a new bank account",
+    description="""
+    Creates a new bank account for a customer.  
+    This endpoint requires **Manager** privileges.
+
+    - **Manager Role Required**: Only managers can create accounts.
+    - **Validations**:
+        - The customer must exist in the system.
+        - The initial deposit amount must be valid.
+    - **Returns**:
+        - A confirmation message along with the new account details.
+    - **Error Handling**:
+        - `404 Not Found` if the customer does not exist.
+        - `403 Forbidden` if the user is not a manager.
+    """,
+    responses={
+        201: {
+            "description": "Account successfully created.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Account created successfully",
+                        "account_id": 101,
+                        "customer_id": 1
+                    }
+                }
+            }
+        },
+        404: {"description": "User not found"},
+        403: {"description": "Forbidden - Requires Manager role"},
+    })
 def create_account(request: CreateAccount, db: Session = Depends(get_db)):
     """Create a new bank account for a customer."""
     customer = db.query(models.Customer).filter(models.Customer.id == request.customer_id).first()
@@ -139,7 +240,40 @@ def create_account(request: CreateAccount, db: Session = Depends(get_db)):
     db.refresh(new_account)
     return {"message": "Account created successfully", "account_id": new_account.id, "customer_id": new_account.customer_id}
 
-@router.get("/accounts/{account_id}/balance", response_model = BalanceResponse, dependencies = [Depends(require_role("teller"))])
+@router.get(
+    "/accounts/{account_id}/balance", 
+    response_model = BalanceResponse, 
+    dependencies = [Depends(require_role("teller"))],
+    summary="Retrieve account balance",
+    description="""
+    Fetches the current balance of a specific bank account.  
+    This endpoint requires **Teller** privileges.
+
+    - **Teller Role Required**: Only tellers can access account balances.
+    - **Validations**:
+        - The account must exist in the system.
+    - **Returns**:
+        - The balance of the requested account.
+    - **Error Handling**:
+        - `404 Not Found` if the account does not exist.
+        - `403 Forbidden` if the user is not a teller.
+    """,
+    responses={
+        200: {
+            "description": "Account balance retrieved successfully.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "customer_id": 1,
+                        "account_id": 101,
+                        "balance": 1500.75
+                    }
+                }
+            }
+        },
+        404: {"description": "Account not found"},
+        403: {"description": "Forbidden - Requires Teller role"},
+    })
 def get_balance(account_id: int, db: Session = Depends(get_db)):
     """Retrieve the balance of a specific account."""
     account = db.query(models.Account).filter(models.Account.id == account_id).first()
@@ -149,7 +283,44 @@ def get_balance(account_id: int, db: Session = Depends(get_db)):
     
     return {"customer_id": account.customer_id, "account_id": account_id, "balance": account.balance}
 
-@router.post("/deposit/", response_model = TransactionResponse, dependencies = [Depends(require_role("teller"))])
+@router.post(
+    "/deposit/", 
+    response_model = TransactionResponse, 
+    dependencies = [Depends(require_role("teller"))],
+    summary="Deposit money into an account",
+    description="""
+    Adds funds to a customer's bank account.  
+    This endpoint requires **Teller** privileges.
+
+    - **Teller Role Required**: Only tellers can perform deposits.
+    - **Validations**:
+        - The deposit amount must be greater than zero.
+        - The account must exist in the system.
+    - **Returns**:
+        - A success message with updated account balance.
+    - **Error Handling**:
+        - `400 Bad Request` if the deposit amount is invalid.
+        - `404 Not Found` if the account does not exist.
+        - `500 Internal Server Error` for unexpected issues.
+    """,
+    responses={
+        200: {
+            "description": "Amount successfully credited to the account.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Amount credited to the account",
+                        "amount": 500,
+                        "account_id": 101,
+                        "curr_balance": 2000.75
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid deposit amount"},
+        404: {"description": "Account not found"},
+        500: {"description": "Internal server error"},
+    })
 def deposit_money(request: DepositWithdrawRequest, db: Session = Depends(get_db)):
     """Deposit money into an account."""
     if request.amount <=0:
@@ -170,7 +341,44 @@ def deposit_money(request: DepositWithdrawRequest, db: Session = Depends(get_db)
         logging.info(f"Unexpected error: {e}")  # Log the error
         raise HTTPException(status_code = 500, detail = "Internal server error")
 
-@router.post("/withdraw/", response_model = TransactionResponse, dependencies = [Depends(require_role("teller"))])
+@router.post(
+    "/withdraw/", 
+    response_model = TransactionResponse, 
+    dependencies = [Depends(require_role("teller"))],
+    summary="Withdraw money from an account",
+    description="""
+    Withdraw funds from a customer's bank account.  
+    This endpoint requires **Teller** privileges.
+
+    - **Teller Role Required**: Only tellers can perform deposits.
+    - **Validations**:
+        - The withdraw amount must be greater than zero.
+        - The account must exist in the system.
+    - **Returns**:
+        - A success message with updated account balance.
+    - **Error Handling**:
+        - `400 Bad Request` if the withdraw amount is invalid.
+        - `404 Not Found` if the account does not exist.
+        - `500 Internal Server Error` for unexpected issues.
+    """,
+    responses={
+        200: {
+            "description": "Amount successfully withdrawn from the account.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Amount debited from the account",
+                        "amount": 500,
+                        "account_id": 101,
+                        "curr_balance": 2000.75
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid withdraw amount"},
+        404: {"description": "Account not found"},
+        500: {"description": "Internal server error"},
+    })
 def withdraw_money(request: DepositWithdrawRequest, db: Session = Depends(get_db)):
     """Withdraw money from an account."""
     if request.amount <=0:
@@ -194,7 +402,46 @@ def withdraw_money(request: DepositWithdrawRequest, db: Session = Depends(get_db
         logging.info(f"Unexpected error: {e}")  # Log the error
         raise HTTPException(status_code = 500, detail = "Internal server error")
  
-@router.post("/transfer/", response_model = TransferResponse, dependencies = [Depends(require_role("manager"))])
+@router.post(
+    "/transfer/", 
+    response_model = TransferResponse, 
+    dependencies = [Depends(require_role("manager"))],
+    summary="Transfer money between accounts",
+    description="""
+    Transfers a specified amount from one account to another.  
+    This operation requires **Manager** privileges.
+
+    - **Manager Role Required**: Only managers can authorize transfers.
+    - **Validations**:
+        - The transfer amount must be greater than zero.
+        - The source and destination accounts must be different.
+        - The source account must have sufficient balance.
+    - **Concurrency Handling**:
+        - Uses **serializable transaction isolation** to ensure safe, sequential execution.
+        - Implements **retry logic** in case of database contention.
+    - **Returns**:
+        - A success message with the timestamp of the transaction.
+    - **Error Handling**:
+        - `400 Bad Request` for invalid transfer amounts or insufficient funds.
+        - `404 Not Found` if one or both accounts do not exist.
+        - `500 Internal Server Error` if a database error occurs after retries.
+    """,
+    responses={
+        200: {
+            "description": "Transaction successful",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Transaction successful",
+                        "timestamp": "2024-02-19T14:25:36.123456"
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid transfer request (e.g., insufficient funds, same account transfer)"},
+        404: {"description": "One or both accounts not found"},
+        500: {"description": "Database transaction error, try again later"},
+    })
 def transfer_money(request: TransferRequest, current_employee: models.Employee = Depends(get_current_employee), db: Session = Depends(get_db)):
     """Transfer money in between accounts"""
     if request.amount <= 0:
@@ -266,7 +513,48 @@ def transfer_money(request: TransferRequest, current_employee: models.Employee =
             logging.info(f"Unexpected error: {e}")  # Log the error
             raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.get("/accounts/{account_id}/transactions", response_model = TransactionHistoryResponse, dependencies = [Depends(require_role("manager"))])
+@router.get(
+    "/accounts/{account_id}/transactions", 
+    response_model = TransactionHistoryResponse, 
+    dependencies = [Depends(require_role("manager"))],
+    summary="Retrieve transaction history for an account",
+    description="""
+    Retrieves the **transaction history** for a specified account.  
+    Transactions are **sorted from most recent to least recent**.
+
+    - **Manager Role Required**: Only managers can access this information.
+    - **Returns**:
+        - A list of all transactions associated with the account.
+        - Includes both **incoming** (credits) and **outgoing** (debits) transactions.
+    - **Error Handling**:
+        - `404 Not Found` if the account does not exist.
+    """,
+    responses={
+        200: {
+            "description": "Transaction history retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "transactions": [
+                            {
+                                "from_account": 123,
+                                "to_account": 456,
+                                "amount": 250.00,
+                                "transaction_time": "2024-02-19 14:30:00 CET"
+                            },
+                            {
+                                "from_account": 789,
+                                "to_account": 123,
+                                "amount": 100.00,
+                                "transaction_time": "2024-02-18 09:15:00 CET"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        404: {"description": "Account not found"},
+    })
 def get_transactions(account_id: int, current_employee: models.Employee = Depends(get_current_employee), db: Session = Depends(get_db)):
     """Retrieve transaction history for an account."""
     account = db.query(models.Account).filter(models.Account.id == account_id).first()
