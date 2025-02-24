@@ -23,3 +23,7 @@ pytz==2025.1
 python-dotenv
 bcrypt>=4.0.1
 passlib>=1.7.4
+pyjwt[crypto]
+python-multipart
+pytest>=7.0.0
+httpx>=0.23.0

@@ -1,13 +1,47 @@
+"""
+Configuration Module
+
+This module loads environment variables and defines global configuration settings 
+for the application, such as database connection details, authentication settings, 
+and retry limits.
+
+Dependencies:
+    - dotenv for loading environment variables
+    - pytz for timezone management
+    - logging for application warnings
+"""
 import os
 import pytz
+import logging
 from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
 
-#Load the environment variables
+# Load environment variables from the .env file
 load_dotenv()
 
-#timezone for Germany
+# -----------------------------------
+# Timezone Configuration
+# -----------------------------------
 GERMANY_TZ = pytz.timezone("Europe/Berlin")
 
-#Database url
+# -----------------------------------
+# Database Configuration
+# -----------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///./test.db")
 
+# -----------------------------------
+# Security Configuration
+# -----------------------------------
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = "secretkey123"  # Use a fixed fallback or generate manually
+    logging.info("!!!WARNING!!!: SECRET_KEY is not set in .env! Using an insecure default.")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 3000
+
+# -----------------------------------
+# General Application Settings
+# -----------------------------------
+MAX_RETRIES = 3

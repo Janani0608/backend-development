@@ -14,7 +14,7 @@ from passlib.context import CryptContext
 
 # revision identifiers, used by Alembic.
 revision: str = '04862669439a'
-down_revision: Union[str, None] = '6eed9c3ee0e7'
+down_revision: Union[str, None] = '4b5db511abfb'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -22,14 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def upgrade() -> None:
-    # 1️⃣ Step 1: Add password_hash column (temporarily allowing NULL values)
+    # Add password_hash column (temporarily allowing NULL values)
     op.add_column('customers', sa.Column('password_hash', sa.String(), nullable=True))
 
-    # 2️⃣ Step 2: Backfill existing customer rows with default hashed passwords
-    default_password = pwd_context.hash("defaultpassword")
-    op.execute(f"UPDATE customers SET password_hash = '{default_password}' WHERE password_hash IS NULL")
-
-    # 3️⃣ Step 3: Now enforce NOT NULL constraint
+    # Now enforce NOT NULL constraint
     op.alter_column('customers', 'password_hash', nullable=False)
 
 def downgrade() -> None:
