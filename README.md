@@ -92,27 +92,3 @@ Feel free to pre-populate your customers with the following:
   }
 ]
 ```
-
-You are expected to design any other required models and routes for your API.
-
-### Evaluation Criteria
-
-- **Python** best practices
-- Completeness: did you complete the features?
-- Correctness: does the functionality act in sensible, thought-out ways?
-- Maintainability: is it written in a clean, maintainable way?
-- Production readiness: is there a clear path towards taking the prototype into production?
-- Testing: 
-   - Is the system adequately tested?
-   - Can the application be installed and tested out of the box by the reviewer?
-- Documentation:
-   - is the API well-documented?
-   - are design choices well-explained?
-
-### CodeSubmit
-
-Please organize, design, test and document your code as if it were going into production - then push your changes to the master branch. After you have pushed your code, you may submit the assignment on the assignment page.
-
-All the best and happy coding,
-
-The Entrix Team
